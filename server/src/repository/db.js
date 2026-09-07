@@ -25,7 +25,6 @@ db.exec('PRAGMA foreign_keys = ON');
 export function initializeDatabase() {
   const schema = readFileSync(fileURLToPath(new URL('schema.sql', dataDir)), 'utf8');
   db.exec(schema);
-
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM quiz').get();
   if (n === 0) {
     const seed = readFileSync(fileURLToPath(new URL('seed.sql', dataDir)), 'utf8');

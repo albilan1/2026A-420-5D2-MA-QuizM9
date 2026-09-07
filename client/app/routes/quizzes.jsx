@@ -45,6 +45,7 @@ export default function Quizzes() {
   return (
     <main className="screen">
       <h1>Mes questionnaires</h1>
+
       <ul className="quiz-list">
         {quizzes.map((quiz) => (
           <li key={quiz.id} className="card row">
