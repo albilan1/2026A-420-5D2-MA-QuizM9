@@ -122,6 +122,7 @@ export default function QuizEdit() {
             </label>
           ))}
         </fieldset>
+        {actionData?.error && <p className="error">{actionData.error}</p>}
         <button>Ajouter la question</button>
       </Form>
     </main>
