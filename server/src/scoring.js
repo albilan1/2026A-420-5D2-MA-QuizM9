@@ -28,5 +28,5 @@ export function calculateScore({ isCorrect, responseTimeMs, questionDurationMs, 
   if (responseTimeMs > questionDurationMs) return 0;
   const speedBonus = Math.max(0, Math.floor(3 * (1 - responseTimeMs / questionDurationMs)));
   const firstBonus = isFirstCorrectAnswer ? 2 : 0;
-  return 5 + speedBonus + firstBonus;
+  return 4 + speedBonus + firstBonus;
 }
