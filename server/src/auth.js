@@ -51,22 +51,39 @@ auth.get('/api/auth/callback', async (req, res) => {
   if (!code || !state || state !== session.state) {
     return res.status(400).json({ error: 'Retour OAuth invalide (state).' });
   }
+    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      code,
+      redirect_uri: CALLBACK_URL,
+    }),
+  });
+  const tokenData = await tokenResponse.json();
+  const accessToken = tokenData.access_token;
 
-  // À faire (exercice 11, jalon 1). Les trois étapes qui restent :
-  //
-  // 3a. Le code contre un jeton : POST https://github.com/login/oauth/access_token
-  //     corps JSON { client_id, client_secret, code, redirect_uri },
-  //     en-tête accept: application/json. La réponse contient access_token.
-  //     Cet appel part du SERVEUR : c'est le seul endroit où le secret sert.
-  //
-  // 3b. Le jeton contre le profil : GET https://api.github.com/user avec
-  //     l'en-tête authorization: Bearer <jeton>. La réponse : { id, login,
-  //     name, avatar_url }.
-  //
-  // 4.  repository.findOrCreateAccount({ githubId, login, name, avatarUrl }),
-  //     puis writeSession(res, { accountId: account.id }) et une redirection
-  //     vers /quizzes. Le jeton n'est pas gardé : on n'en a plus besoin.
-  res.status(501).json({ error: 'À faire : le rappel OAuth.' });
+    const profileResponse = await fetch('https://api.github.com/user', {
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'user-agent': 'quiz-m9',
+    },
+  });
+  const profile = await profileResponse.json();
+
+    const account = await repository.findOrCreateAccount({
+    githubId: profile.id,
+    login: profile.login,
+    name: profile.name,
+    avatarUrl: profile.avatar_url,
+  });
+
+  writeSession(res, { accountId: account.id });
+  res.redirect('/quizzes');
 });
 
 // La déconnexion : on efface le cookie. GitHub n'est pas concerné.

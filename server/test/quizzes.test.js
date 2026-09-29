@@ -34,7 +34,11 @@ test('un titre valide crée le questionnaire (201)', async () => {
 
 // ── Semaine 5 : les comptes ───────────────────────────────────────────────
 
-test.todo('créer un questionnaire sans être connecté est refusé (401)');
+test('créer un questionnaire sans être connecté est refusé (401)', async () => {
+  const { status, data } = await api.request('POST', '/api/quizzes', { title: 'Capitales' });
+  assert.equal(status, 401);
+  assert.equal(typeof data.error, 'string');
+});
 
 test('un cookie de session altéré vaut pas de session (401)', async () => {
   const altered = session.slice(0, -4) + 'zzzz';
@@ -44,7 +48,21 @@ test('un cookie de session altéré vaut pas de session (401)', async () => {
 
 // Deux comptes (api.login('bob')), un questionnaire chacun : bob ne voit
 // que le sien.
-test.todo('GET /api/me/quizzes ne montre que les questionnaires de l’auteur');
+test('GET /api/me/quizzes ne montre que les questionnaires de l’auteur', async () => {
+  const bobSession = await api.login('bob');
+
+  await api.request('POST', '/api/quizzes', { title: 'Quiz de Alice' }, session);
+  await api.request('POST', '/api/quizzes', { title: 'Quiz de Bob' }, bobSession);
+
+  const alice = await api.request('GET', '/api/me/quizzes', undefined, session);
+  const bob = await api.request('GET', '/api/me/quizzes', undefined, bobSession);
+
+  assert.equal(alice.data.some((q) => q.title === 'Quiz de Alice'), true);
+  assert.equal(alice.data.some((q) => q.title === 'Quiz de Bob'), false);
+
+  assert.equal(bob.data.some((q) => q.title === 'Quiz de Bob'), true);
+  assert.equal(bob.data.some((q) => q.title === 'Quiz de Alice'), false);
+});
 
 // ── Les questions ─────────────────────────────────────────────────────────
 
@@ -113,5 +131,25 @@ test('une partie sur un questionnaire sans question est refusée (400)', async (
 
 // Un questionnaire avec une question, deux parties dessus, un joueur dans
 // la seconde : la seconde vient en premier, avec playerCount 1.
-test.todo('GET /api/quizzes/:id/games liste les parties, la plus récente d’abord');
-test.todo('GET /api/quizzes/:id/games sur un questionnaire inconnu répond 404');
+test('GET /api/quizzes/:id/games liste les parties, la plus récente d’abord', async () => {
+  const quizId = await createQuiz();
+  await api.request('POST', `/api/quizzes/${quizId}/questions`, question());
+
+  const first = await api.request('POST', '/api/games', { quizId });
+  const second = await api.request('POST', '/api/games', { quizId });
+
+  await api.request('POST', `/api/games/${second.data.code}/players`, { nickname: 'zoe' });
+
+  const { status, data } = await api.request('GET', `/api/quizzes/${quizId}/games`);
+  assert.equal(status, 200);
+  assert.equal(data.length, 2);
+  assert.equal(data[0].code, second.data.code);
+  assert.equal(data[0].playerCount, 1);
+  assert.equal(data[1].code, first.data.code);
+  assert.equal(data[1].playerCount, 0);
+});
+
+test('GET /api/quizzes/:id/games sur un questionnaire inconnu répond 404', async () => {
+  const { status } = await api.request('GET', '/api/quizzes/999999/games');
+  assert.equal(status, 404);
+});

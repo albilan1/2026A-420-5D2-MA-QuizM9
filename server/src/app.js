@@ -69,7 +69,11 @@ app.get('/api/quizzes', async (req, res) => {
 // 401 si personne n'est connecté (currentAccount), sinon SEULEMENT les siens
 // (repository.listQuizzesForAccount). Pour l'instant : tous.
 app.get('/api/me/quizzes', async (req, res) => {
-  res.status(200).json(await repository.listQuizzes());
+  const account = await currentAccount(req);
+  if (!account) {
+    return res.status(401).json({ error: 'Non connecté.' });
+  }
+  res.status(200).json(await repository.listQuizzesForAccount(account.id));
 });
 
 // Un questionnaire complet, avec ses bonnes réponses : la vue de l'AUTEUR,
@@ -80,6 +84,16 @@ app.get('/api/quizzes/:id', async (req, res) => {
     return res.status(404).json({ error: 'Questionnaire introuvable.' });
   }
   res.status(200).json(quiz);
+});
+
+app.get('/api/quizzes/:id/games', async (req, res) => {
+  const id = Number(req.params.id);
+  const quiz = await repository.getQuizWithQuestions(id);
+  if (!quiz) {
+    return res.status(404).json({ error: 'Questionnaire introuvable.' });
+  }
+  const games = await repository.listGamesForQuiz(id);
+  res.status(200).json(games);
 });
 
 // ── L'espace auteur ───────────────────────────────────────────────────────
@@ -118,11 +132,15 @@ function validateQuestion(body) {
 // Créer un questionnaire vide. À faire (exercice 11, jalon 2) : 401 si
 // personne n'est connecté, et le questionnaire appartient au compte connecté.
 app.post('/api/quizzes', async (req, res) => {
+  const account = await currentAccount(req);
+  if (!account) {
+    return res.status(401).json({ error: 'Non connecté.' });
+  }
   const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
   if (title === '') {
     return res.status(400).json({ error: 'Le titre est obligatoire.' });
   }
-  const id = await repository.createQuiz(title, null);
+  const id = await repository.createQuiz(title, account.id);
   res.status(201).json({ id, title });
 });
 

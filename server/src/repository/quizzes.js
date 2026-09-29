@@ -32,7 +32,30 @@ export async function listQuizzes() {
  * À faire (exercice 11, jalon 2).
  */
 export async function listQuizzesForAccount(accountId) {
-  throw new Error('À faire : listQuizzesForAccount.');
+  const { rows } = await pool.query(
+    `SELECT quiz.id, quiz.title, COUNT(question.id) AS "questionCount"
+       FROM quiz
+       LEFT JOIN question ON question.quiz_id = quiz.id
+      WHERE quiz.account_id = $1
+      GROUP BY quiz.id
+      ORDER BY quiz.id`,
+    [accountId],
+  );
+  return rows;
+}
+
+export async function listGamesForQuiz(quizId) {
+  const { rows } = await pool.query(
+    `SELECT game.id, game.code, game.state,
+            game.created_at AS "createdAt", COUNT(player.id) AS "playerCount"
+       FROM public.game
+       LEFT JOIN player ON player.game_id = game.id
+      WHERE game.quiz_id = $1
+      GROUP BY game.id
+      ORDER BY game.created_at DESC`,
+    [quizId],
+  );
+  return rows;
 }
 
 /**
