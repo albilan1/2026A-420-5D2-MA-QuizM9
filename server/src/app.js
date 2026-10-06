@@ -75,32 +75,19 @@ app.get('/api/quizzes', async (req, res) => {
 
 // Les questionnaires de l'auteur connecté. À faire (exercice 12, jalon 1) :
 // requireAccount remplace la vérification écrite à la main.
-app.get('/api/me/quizzes', async (req, res) => {
-  const account = await currentAccount(req);
-  if (!account) {
-    return res.status(401).json({ error: 'Connectez-vous pour voir vos questionnaires.' });
-  }
-  res.status(200).json(await repository.listQuizzesForAccount(account.id));
+// Les questionnaires de l'auteur connecté.
+app.get('/api/me/quizzes', requireAccount, async (req, res) => {
+  res.status(200).json(await repository.listQuizzesForAccount(req.account.id));
 });
 
-// Un questionnaire complet, avec ses bonnes réponses : la vue de l'AUTEUR,
-// pas celle d'un joueur en partie. À faire (exercice 12, jalon 2) : réservée
-// à son auteur, comme toutes les routes de l'espace auteur plus bas.
-app.get('/api/quizzes/:id', async (req, res) => {
-  const quiz = await repository.getQuizWithQuestions(Number(req.params.id));
-  if (!quiz) {
-    return res.status(404).json({ error: 'Questionnaire introuvable.' });
-  }
-  res.status(200).json(quiz);
+// Un questionnaire complet, avec ses bonnes réponses : réservé à son auteur.
+app.get('/api/quizzes/:id', requireAccount, requireQuizAuthor, async (req, res) => {
+  res.status(200).json(req.quiz);
 });
 
 // Les parties jouées sur un questionnaire (exercice 10).
-app.get('/api/quizzes/:id/games', async (req, res) => {
-  const quizId = Number(req.params.id);
-  if (!(await repository.getQuizWithQuestions(quizId))) {
-    return res.status(404).json({ error: 'Questionnaire introuvable.' });
-  }
-  res.status(200).json(await repository.listGamesForQuiz(quizId));
+app.get('/api/quizzes/:id/games', requireAccount, requireQuizAuthor, async (req, res) => {
+  res.status(200).json(await repository.listGamesForQuiz(req.quiz.id));
 });
 
 // ── L'espace auteur ───────────────────────────────────────────────────────
@@ -138,30 +125,23 @@ function validateQuestion(body) {
 
 // Créer un questionnaire vide : il appartient à l'auteur connecté.
 // À faire (exercice 12, jalon 1) : requireAccount.
-app.post('/api/quizzes', async (req, res) => {
-  const account = await currentAccount(req);
-  if (!account) {
-    return res.status(401).json({ error: 'Connectez-vous pour créer un questionnaire.' });
-  }
+// Créer un questionnaire vide : il appartient à l'auteur connecté.
+app.post('/api/quizzes', requireAccount, async (req, res) => {
   const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
   if (title === '') {
     return res.status(400).json({ error: 'Le titre est obligatoire.' });
   }
-  const id = await repository.createQuiz(title, account.id);
+  const id = await repository.createQuiz(title, req.account.id);
   res.status(201).json({ id, title });
 });
 
 // Changer la description d'un questionnaire (auteur).
-app.patch('/api/quizzes/:id', async (req, res) => {
-  const quizId = Number(req.params.id);
-  if (!(await repository.getQuizWithQuestions(quizId))) {
-    return res.status(404).json({ error: 'Questionnaire introuvable.' });
-  }
+app.patch('/api/quizzes/:id', requireAccount, requireQuizAuthor, async (req, res) => {
   const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
   if (description.length > 500) {
     return res.status(400).json({ error: 'La description fait au plus 500 caractères.' });
   }
-  await repository.updateQuizDescription(quizId, description);
+  await repository.updateQuizDescription(req.quiz.id, description);
   res.status(200).json({});
 });
 
@@ -187,16 +167,13 @@ app.get('/api/quizzes/:id/delete', async (req, res) => {
 });
 
 // Ajouter une question à la fin d'un questionnaire (auteur).
-app.post('/api/quizzes/:id/questions', async (req, res) => {
-  const quizId = Number(req.params.id);
-  if (!(await repository.getQuizWithQuestions(quizId))) {
-    return res.status(404).json({ error: 'Questionnaire introuvable.' });
-  }
+// Ajouter une question à la fin d'un questionnaire (auteur).
+app.post('/api/quizzes/:id/questions', requireAccount, requireQuizAuthor, async (req, res) => {
   const error = validateQuestion(req.body);
   if (error) {
     return res.status(400).json({ error });
   }
-  const id = await repository.addQuestion(quizId, {
+  const id = await repository.addQuestion(req.quiz.id, {
     text: req.body.text.trim(),
     durationSeconds: Number(req.body.durationSeconds),
     choices: req.body.choices.map((c) => ({ text: c.text.trim(), isCorrect: c.isCorrect === true })),
@@ -205,11 +182,10 @@ app.post('/api/quizzes/:id/questions', async (req, res) => {
 });
 
 // Retirer une question d'un questionnaire (auteur).
-app.delete('/api/quizzes/:id/questions/:questionId', async (req, res) => {
-  const quizId = Number(req.params.id);
+app.delete('/api/quizzes/:id/questions/:questionId', requireAccount, requireQuizAuthor, async (req, res) => {
   const questionId = Number(req.params.questionId);
   try {
-    if (!(await repository.deleteQuestion(quizId, questionId))) {
+    if (!(await repository.deleteQuestion(req.quiz.id, questionId))) {
       return res.status(404).json({ error: 'Question introuvable.' });
     }
   } catch {
@@ -224,7 +200,7 @@ app.delete('/api/quizzes/:id/questions/:questionId', async (req, res) => {
 // questionnaire du catalogue : animer n'est pas modifier. À faire
 // (exercice 12, jalon 3) : il faut un compte, et la partie retient son
 // animateur.
-app.post('/api/games', async (req, res) => {
+app.post('/api/games', requireAccount, async (req, res) => {
   const quizId = Number(req.body?.quizId);
   const quiz = await repository.getQuizWithQuestions(quizId);
   if (!quiz) {
@@ -235,10 +211,9 @@ app.post('/api/games', async (req, res) => {
   if (quiz.questions.length === 0) {
     return res.status(400).json({ error: 'Ce questionnaire n’a aucune question.' });
   }
-  const game = await createGame(quizId);
+  const game = await createGame(quizId, req.account.id);
   res.status(201).json({ code: game.code });
 });
-
 // Rejoindre une partie avec un pseudonyme (joueur).
 app.post('/api/games/:code/players', async (req, res) => {
   const game = await requestedGame(req, res);
@@ -270,9 +245,10 @@ app.get('/api/games/:code', async (req, res) => {
 
 // L'animateur avance : clôt la question en cours, ou passe à la suivante.
 // À faire (exercice 12, jalon 3) : seulement l'animateur de CETTE partie.
-app.post('/api/games/:code/next', async (req, res) => {
-  const game = await requestedGame(req, res);
-  if (!game) return;
+// L'animateur avance : clôt la question en cours, ou passe à la suivante.
+// Seulement l'animateur de CETTE partie (ou un administrateur).
+app.post('/api/games/:code/next', requireAccount, requireGameHost, async (req, res) => {
+  const game = req.game;
 
   await closeQuestionIfExpired(game);
   if (game.state === 'question') {
