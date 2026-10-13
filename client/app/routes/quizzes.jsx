@@ -27,6 +27,10 @@ export async function loader({ request }) {
 export async function action({ request }) {
   const formData = await request.formData();
 
+  if (formData.get('intent') === 'delete') {
+    return deleteQuiz(request, formData.get('quizId'));
+  }
+
   const response = await apiFetch(request, '/api/quizzes', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -43,6 +47,17 @@ export async function action({ request }) {
   }
   // Créé : on envoie l'auteur remplir son questionnaire.
   return redirect(`/quizzes/${body.id}/edit`);
+}
+
+async function deleteQuiz(request, quizId) {
+  const response = await apiFetch(request, `/api/quizzes/${quizId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const body = await response.json();
+    return data({ error: body.error }, { status: response.status });
+  }
+  return { deleted: true };
 }
 
 export default function Quizzes() {
@@ -64,7 +79,11 @@ export default function Quizzes() {
             </div>
             <div className="actions">
               <Link className="button" to={`/quizzes/${quiz.id}/edit`}>Modifier</Link>
-              <a className="button secondary" href={`/api/quizzes/${quiz.id}/delete`}>Supprimer</a>
+              <Form method="post">
+                <input type="hidden" name="intent" value="delete" />
+                <input type="hidden" name="quizId" value={quiz.id} />
+                <button className="secondary">Supprimer</button>
+              </Form>
             </div>
           </li>
         ))}

@@ -146,7 +146,7 @@ app.patch('/api/quizzes/:id', requireAccount, requireQuizAuthor, async (req, res
 });
 
 // Supprimer un questionnaire (auteur). Un simple lien suffit dans la page.
-app.get('/api/quizzes/:id/delete', async (req, res) => {
+app.delete('/api/quizzes/:id', async (req, res) => {
   const account = await currentAccount(req);
   if (!account) {
     return res.status(401).json({ error: 'Connectez-vous pour supprimer un questionnaire.' });
@@ -163,7 +163,7 @@ app.get('/api/quizzes/:id/delete', async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'Ce questionnaire a déjà été joué : il ne peut plus être supprimé.' });
   }
-  res.redirect('/quizzes');
+  res.status(200).json({});
 });
 
 // Ajouter une question à la fin d'un questionnaire (auteur).

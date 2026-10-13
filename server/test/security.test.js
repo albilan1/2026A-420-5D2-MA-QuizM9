@@ -30,5 +30,29 @@ test('une recherche piégée ne sort pas les comptes', async () => {
 
 // ── Jalon 3 : le CSRF ─────────────────────────────────────────────────────
 
-test.todo('un GET sur /api/quizzes/:id/delete ne supprime rien');
-test.todo('DELETE /api/quizzes/:id supprime le questionnaire de son auteur (200)');
+test('un GET sur /api/quizzes/:id/delete ne supprime rien', async () => {
+  // 1. Alice crée un questionnaire (jamais joué)
+  const { status, data } = await api.request('POST', '/api/quizzes', { title: 'test' }, alice);
+  const id = data.id
+
+  // 2. Le piège : un GET sur l'adresse de suppression, avec la session d'Alice
+  await api.request('GET', `/api/quizzes/${id}/delete`, undefined, alice);
+
+  // 3. Le questionnaire doit toujours exister
+  const apres = await api.request('GET', `/api/quizzes/${id}`, undefined, alice);
+  assert.equal(apres.status, 200);
+});
+
+test('DELETE /api/quizzes/:id supprime le questionnaire de son auteur (200)', async () => {
+  // 1. Alice crée un questionnaire (jamais joué)
+  const { status, data } = await api.request('POST', '/api/quizzes', { title: 'test' }, alice);
+  const id = data.id
+
+  // 2. Alice le supprime, avec le bon verbe
+  const suppression = await api.request("DELETE", `/api/quizzes/${id}`, undefined, alice);
+  assert.equal(suppression.status, 200);
+
+  // 3. Il n'existe plus
+  const apres = await api.request('GET', `/api/quizzes/${id}`, undefined, alice);
+  assert.equal(apres.status, 404);
+});
