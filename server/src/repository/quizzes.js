@@ -34,7 +34,8 @@ export async function searchQuizzes(text) {
     `SELECT id, title, description,
             (SELECT COUNT(*) FROM question WHERE question.quiz_id = quiz.id) AS "questionCount"
        FROM quiz
-      WHERE title ILIKE '%${text}%' ORDER BY id`,
+      WHERE title ILIKE $1 ORDER BY id`,
+      [`%${text}%`]
   );
   return rows;
 }
