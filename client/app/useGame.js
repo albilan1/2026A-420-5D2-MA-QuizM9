@@ -4,12 +4,19 @@ export function useGame(code) {
   const [game, setGame] = useState(null);
 
   useEffect(() => {
-    if (!code) return;
+  if (!code) return;
 
+  let ws = null;
+  let attempts = 0;
+  let retryTimer = null;
+  let stopped = false;
+
+  function connect() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+    ws = new WebSocket(`${protocol}//${location.host}/ws`);
 
     ws.onopen = () => {
+      attempts = 0;
       ws.send(JSON.stringify({ type: 'join', code }));
     };
 
@@ -21,10 +28,23 @@ export function useGame(code) {
       }
     };
 
-    return () => {
-      ws.close();
+    ws.onclose = () => {
+      if (stopped) return;
+
+      const delay = Math.min(30000, 1000 * 2 ** attempts) + Math.random() * 1000;
+      attempts += 1;
+      retryTimer = setTimeout(connect, delay);
     };
-  }, [code]);
+  }
+
+  connect();
+
+  return () => {
+    stopped = true;
+    clearTimeout(retryTimer);
+    ws.close();
+  };
+}, [code]);
 
   return game;
 }
