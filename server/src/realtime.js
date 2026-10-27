@@ -16,6 +16,19 @@ function leave(code, ws) {
   if (group.size === 0) groups.delete(code);
 }
 
+export async function broadcastState(code) {
+  const group = groups.get(code);
+  if (!group) return;
+
+  const text = JSON.stringify({ type: 'state', game: await publicState(code) });
+
+  for (const ws of group) {
+    if (ws.readyState === 1) {
+      ws.send(text);
+    }
+  }
+}
+
 export function attachRealtime(server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 

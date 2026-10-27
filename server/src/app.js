@@ -53,6 +53,7 @@ import {
   currentQuestion,
   publicState,
 } from './game.js';
+import { broadcastState } from './realtime.js';
 
 await repository.initializeDatabase();
 
@@ -223,6 +224,7 @@ app.post('/api/games/:code/players', async (req, res) => {
   }
 
   await repository.addPlayer(game.id, nickname);
+  await broadcastState(game.code);
   res.status(201).json({ nickname });
 });
 
@@ -245,6 +247,9 @@ app.post('/api/games/:code/next', requireAccount, requireGameHost, async (req, r
   } else {
     await advance(game);
   }
+
+  await broadcastState(game.code);
+
   res.status(200).json(await publicState(game.code));
 });
 
@@ -274,6 +279,9 @@ app.post('/api/games/:code/answers', async (req, res) => {
   // Le moment de la réponse est celui du SERVEUR : le bonus de rapidité ne
   // se négocie pas avec l'horloge du client (on y reviendra, semaine 11).
   await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
+
+  await broadcastState(game.code);
+
   res.status(201).json({});
 });
 
