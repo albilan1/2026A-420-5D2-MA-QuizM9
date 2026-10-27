@@ -53,7 +53,7 @@ import {
   currentQuestion,
   publicState,
 } from './game.js';
-import { broadcastState } from './realtime.js';
+import { broadcastState, closeAtDeadline } from './realtime.js';
 
 await repository.initializeDatabase();
 
@@ -247,10 +247,14 @@ app.post('/api/games/:code/next', requireAccount, requireGameHost, async (req, r
   } else {
     await advance(game);
   }
-
   await broadcastState(game.code);
 
-  res.status(200).json(await publicState(game.code));
+  const state = await publicState(game.code);
+  if (state.state === 'question') {
+    closeAtDeadline(game.code, state.question.deadline);
+  }
+
+  res.status(200).json(state);
 });
 
 // Un joueur répond à la question en cours.

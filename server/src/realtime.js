@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { publicState } from './game.js';
+import { publicState, closeQuestionIfExpired } from './game.js';
 import * as repository from './repository/index.js';
 
 const groups = new Map();
@@ -27,6 +27,20 @@ export async function broadcastState(code) {
       ws.send(text);
     }
   }
+}
+
+export function closeAtDeadline(code, deadline) {
+  const delay = deadline - Date.now() + 100;
+
+  setTimeout(async () => {
+    try {
+      const game = await repository.findGameByCode(code);
+      await closeQuestionIfExpired(game);
+      await broadcastState(code);
+    } catch (err) {
+      console.error('closeAtDeadline :', err.message);
+    }
+  }, delay);
 }
 
 export function attachRealtime(server) {
