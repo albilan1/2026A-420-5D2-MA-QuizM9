@@ -78,3 +78,14 @@ export function clearSession(res) {
 
 /** Le nom du cookie, pour les tests qui en fabriquent un. */
 export { COOKIE_NAME };
+
+export function signPlayerToken(code, nickname) {
+  return signSession({ code, nickname });
+}
+
+/** { code, nickname }, ou null si le jeton n'est pas valide. */
+export function verifyPlayerToken(token) {
+  if (typeof token !== 'string') return null;
+  const { code, nickname } = verifySession(token);
+  return code && nickname ? { code, nickname } : null;
+}

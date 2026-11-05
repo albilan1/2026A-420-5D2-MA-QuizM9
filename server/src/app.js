@@ -58,6 +58,7 @@ import {
   publicState,
 } from './game.js';
 import { broadcastState, closeAtDeadline, setChatEnabled } from './realtime.js';
+import { signPlayerToken } from './session.js';
 
 await repository.initializeDatabase();
 
@@ -229,7 +230,7 @@ app.post('/api/games/:code/players', async (req, res) => {
 
   await repository.addPlayer(game.id, nickname);
   await broadcastState(game.code);
-  res.status(201).json({ nickname });
+  res.status(201).json({ nickname, token: signPlayerToken(game.code, nickname) });
 });
 
 // L'état de la partie. Le navigateur ne la sonde plus (il reçoit l'état par

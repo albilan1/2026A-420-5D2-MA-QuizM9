@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
+import { getSession } from './session.js';
 
 export function useGame(code) {
   const [game, setGame] = useState(null);
@@ -25,7 +26,8 @@ export function useGame(code) {
     // cette option, Socket.IO commence en HTTP (long polling) puis passe au
     // WebSocket, et nos relais (Vite, client/server.js) ne laissent passer
     // que le WebSocket.
-    const socket = io({ transports: ['websocket'] });
+    const token = getSession(code)?.token;
+    const socket = io({ transports: ['websocket'], auth: token ? { token } : {} });
     socketRef.current = socket;
 
     // 'connect' arrive à la première connexion ET à chaque reconnexion. Le
@@ -54,9 +56,8 @@ export function useGame(code) {
   }, [code]);
 
   /** Envoie un message au chat ; la réponse du serveur, {} ou { error }. */
-  function sendMessage(nickname, text) {
-    // timeout : sans réponse en 5 s, la promesse est rejetée au lieu d'attendre.
-    return socketRef.current.timeout(5000).emitWithAck('chat:send', { nickname, text });
+  function sendMessage(text) {
+    return socketRef.current.emitWithAck('chat:send', { text });
   }
 
   return { game, chat, sendMessage };

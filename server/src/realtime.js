@@ -32,6 +32,7 @@
 import { Server } from 'socket.io';
 import * as repository from './repository/index.js';
 import { closeQuestionIfExpired, publicState } from './game.js';
+import { readSession, verifyPlayerToken } from './session.js';
 
 /** Le serveur Socket.IO ; null tant que attachRealtime n'a pas été appelé. */
 let io = null;
@@ -55,6 +56,17 @@ function chatOf(code) {
 export function attachRealtime(server) {
   io = new Server(server);
 
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (token !== undefined) {
+      const player = verifyPlayerToken(token);
+      if (!player) return next(new Error('Jeton invalide.')); // connexion refusée
+      socket.data.player = player; // { code, nickname }
+    }
+    socket.data.accountId = readSession(socket.request).accountId ?? null;
+    next(); // connexion acceptée
+  });
+
   io.on('connection', (socket) => {
     socket.on('join', async (code, ack) => {
       if (typeof ack !== 'function') return; // un client qui n'attend pas de réponse
@@ -64,16 +76,16 @@ export function attachRealtime(server) {
         if (!game) {
           return ack({ error: 'Partie introuvable.' });
         }
+        if (socket.data.player && socket.data.player.code !== game.code) {
+          return ack({ error: 'Ce jeton est celui d’une autre partie.' });
+        }
         // Une connexion suit une seule partie : on quitte les autres salons.
-        // (socket.id est le salon personnel de chaque connexion : on le garde.)
         for (const room of socket.rooms) {
           if (room !== socket.id) socket.leave(room);
         }
         socket.join(game.code);
-        socket.data.code = game.code; // pour 'chat:send' : la partie de CETTE connexion
+        socket.data.code = game.code;
 
-        // Comme GET /api/games/:code : une échéance passée pendant que le
-        // serveur était arrêté est constatée ici.
         await closeQuestionIfExpired(game);
         ack({ game: await publicState(game.code), chat: chatOf(game.code) });
       } catch (err) {
@@ -94,12 +106,8 @@ export function attachRealtime(server) {
         if (text === '' || text.length > MAX_LENGTH) {
           return ack({ error: `Un message fait de 1 à ${MAX_LENGTH} caractères.` });
         }
-        const nickname = typeof message?.nickname === 'string' ? message.nickname : '';
-        const game = await repository.findGameByCode(code);
-        const player = await repository.findPlayer(game.id, nickname);
-        if (!player) {
-          return ack({ error: 'Joueur inconnu dans cette partie.' });
-        }
+        const player = socket.data.player;
+        if (!player) return ack({ error: 'Seul un joueur écrit dans le chat.' });
         // Le champ grisé du navigateur ne protège rien : c'est ici qu'on refuse.
         const chat = chatOf(code);
         if (!chat.enabled) {
