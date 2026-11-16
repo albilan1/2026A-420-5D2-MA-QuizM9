@@ -52,6 +52,21 @@ function chatOf(code) {
   return chats.get(code);
 }
 
+/** L'état public de la partie, plus la présence : qui est en ligne. */
+async function stateWithPresence(code) {
+  const state = await publicState(code);
+  const sockets = await io.in(code).fetchSockets(); // les connexions du salon
+  const online = new Set(
+    sockets.filter((s) => s.data.role === 'player').map((s) => s.data.player.nickname),
+  );
+  return {
+    ...state,
+    players: state.players.map((p) => ({ ...p, online: online.has(p.nickname) })),
+    hostOnline: sockets.some((s) => s.data.role === 'host'),
+    spectatorCount: sockets.filter((s) => s.data.role === 'spectator').length,
+  };
+}
+
 /** Greffe Socket.IO au serveur HTTP (celui que retourne app.listen). */
 export function attachRealtime(server) {
   io = new Server(server);
@@ -85,9 +100,18 @@ export function attachRealtime(server) {
         }
         socket.join(game.code);
         socket.data.code = game.code;
+        if (socket.data.player) {
+          socket.data.role = 'player';
+        } else if (socket.data.accountId !== null && socket.data.accountId === game.account_id) {
+          socket.data.role = 'host';
+        } else {
+          socket.data.role = 'spectator';
+        }
 
         await closeQuestionIfExpired(game);
-        ack({ game: await publicState(game.code), chat: chatOf(game.code) });
+        const state = await stateWithPresence(game.code);
+        socket.to(game.code).emit('state', state); // les autres apprennent l'arrivée
+        ack({ game: state, chat: chatOf(game.code) }); // la nouvelle connexion, par l'ack
       } catch (err) {
         console.error(err);
         ack({ error: 'Erreur du serveur.' });
@@ -126,8 +150,14 @@ export function attachRealtime(server) {
       }
     });
 
-    // Rien à faire à la déconnexion : Socket.IO retire la connexion de ses
-    // salons tout seul.
+    socket.on('disconnect', async () => {
+      if (!socket.data.code) return; // elle n'avait rejoint aucune partie
+      try {
+        await broadcastState(socket.data.code);
+      } catch (err) {
+        console.error(err);
+      }
+    });
   });
 
   return io;
@@ -137,7 +167,7 @@ export function attachRealtime(server) {
 export async function broadcastState(code) {
   if (!io?.sockets.adapter.rooms.has(code)) return; // personne ne regarde : inutile de lire la base
 
-  io.to(code).emit('state', await publicState(code));
+  io.to(code).emit('state', await stateWithPresence(code));
 }
 
 /** L'animateur coupe ou rouvre le chat : on retient, puis on prévient le salon. */
