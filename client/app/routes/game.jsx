@@ -36,6 +36,7 @@ export default function Game() {
   const isHost = session?.role === 'host';
   const nickname = session?.role === 'player' ? session.nickname : null;
   const hasAnswered = answeredIndex === game.questionIndex;
+  const onlineCount = game.players.filter((p) => p.online).length;
 
   async function advance() {
     try {
@@ -61,6 +62,8 @@ export default function Game() {
         <p className="code">
           {nickname ? `${nickname} — ` : ''}partie {game.code}
         </p>
+        <p>{game.spectatorCount} spectateur(s)</p>
+        {!game.hostOnline && <p className="notice">L'animateur s'est déconnecté.</p>}
       </header>
 
       {game.state === 'question' && (
@@ -71,14 +74,10 @@ export default function Game() {
           <h2>{game.question.text}</h2>
           <Countdown deadline={game.question.deadline} />
 
-          {isHost && (
-            <>
-              <p>
-                {game.answerCount} / {game.players.length} réponse(s) reçue(s)
-              </p>
-              <button onClick={advance}>Clore la question</button>
-            </>
-          )}
+          <p>
+            {game.answerCount} sur {onlineCount} ont répondu
+          </p>
+          {isHost && <button onClick={advance}>Clore la question</button>}
           {nickname &&
             (hasAnswered ? (
               <p>Réponse envoyée. On attend les autres…</p>

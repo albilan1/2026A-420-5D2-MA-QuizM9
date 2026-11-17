@@ -45,6 +45,8 @@ export default function Lobby() {
         <p className="code">
           Code de partie : <strong>{game.code}</strong>
         </p>
+        <p>{game.spectatorCount} spectateur(s)</p>
+        {!game.hostOnline && <p className="notice">L'animateur s'est déconnecté.</p>}
       </header>
 
       <h2>Salon d'attente — {game.players.length} joueur(s)</h2>

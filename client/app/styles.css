@@ -325,3 +325,13 @@ input[type='search'] {
   grid-template-columns: 1fr auto;
   margin-top: 0.6rem;
 }
+
+.dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #aaa; /* gris : hors ligne */
+  margin-right: 0.5rem;
+}
+.dot.online { background: #2a9d4b; } /* vert : en ligne */

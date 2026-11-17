@@ -6,7 +6,10 @@ export default function Leaderboard({ players, currentNickname }) {
     <ol className="leaderboard">
       {players.map((p) => (
         <li key={p.nickname} className={p.nickname === currentNickname ? 'me' : ''}>
-          <span>{p.nickname}</span>
+          <span>
+            <span className={p.online ? 'dot online' : 'dot'} />
+            {p.nickname}
+          </span>
           <span>{p.score} pts</span>
         </li>
       ))}
