@@ -51,7 +51,7 @@ function deadlineOf(game, question) {
  * transaction : toutes passent par la connexion `tx` qu'elle a empruntée.
  */
 export async function closeQuestion(game) {
-  if (game.state !== 'question') return;
+  if (game.state !== 'question') return false;
   const question = await currentQuestion(game);
   const correctChoices = new Set(
     question.choices.filter((c) => c.isCorrect).map((c) => c.id),
@@ -59,7 +59,15 @@ export async function closeQuestion(game) {
   const questionDurationMs = question.durationSeconds * 1000;
   const answers = await repository.getAnswersForQuestion(game.id, question.id);
 
-  await repository.withTransaction(async (tx) => {
+  const closed = await repository.withTransaction(async (tx) => {
+    const won = await repository.transitionGame(
+      game.id,
+      { state: 'question', questionIndex: game.question_index },
+      { state: 'results', questionIndex: game.question_index, questionStartedAt: null },
+      tx,
+    );
+    if (!won) return false;
+    const answers = await repository.getAnswersForQuestion(game.id, question.id, tx);
     let firstAwarded = false;
     for (const answer of answers) {
       const responseTimeMs = answer.answered_at - game.question_started_at;
@@ -77,10 +85,11 @@ export async function closeQuestion(game) {
       await repository.setAnswerPoints(answer.id, points, tx);
       await repository.addPointsToPlayer(answer.player_id, points, tx);
     }
-    await repository.updateGameState(game.id, 'results', game.question_index, null, tx);
+    return true;
   });
   game.state = 'results';
   game.question_started_at = null;
+  return closed;
 }
 
 /** Clôt la question courante si son échéance est passée. */
@@ -94,13 +103,16 @@ export async function closeQuestionIfExpired(game) {
 
 /** Passe à la question suivante, ou termine la partie s'il n'y en a plus. */
 export async function advance(game) {
-  if (game.state === 'finished') return;
+  if (game.state === 'finished') return false;
   const quiz = await repository.getQuizWithQuestions(game.quiz_id);
+  const from = { state: game.state, questionIndex: game.question_index };
+  let to;
   if (game.question_index + 1 >= quiz.questions.length) {
-    await repository.updateGameState(game.id, 'finished', game.question_index, null);
-    return;
+    to = { state: 'finished', questionIndex: game.question_index, questionStartedAt: null };
+  } else {
+    to = { state: 'question', questionIndex: game.question_index + 1, questionStartedAt: Date.now() };
   }
-  await repository.updateGameState(game.id, 'question', game.question_index + 1, Date.now());
+  return repository.transitionGame(game.id, from, to);
 }
 
 /**

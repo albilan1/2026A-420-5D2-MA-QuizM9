@@ -256,12 +256,18 @@ app.get('/api/games/:code', async (req, res) => {
 // L'animateur avance : clôt la question en cours, ou passe à la suivante.
 // Seulement l'animateur de CETTE partie : les joueurs connaissent le code.
 app.post('/api/games/:code/next', requireAccount, requireGameHost, async (req, res) => {
+  const expected = req.body ?? {};
+  if (typeof expected.state !== 'string' || !Number.isInteger(expected.questionIndex)) {
+    return res.status(400).json({ error: 'L’état attendu est obligatoire : { state, questionIndex }.' });
+  }
   const game = req.game;
   await closeQuestionIfExpired(game);
-  if (game.state === 'question') {
-    await closeQuestion(game);
-  } else {
-    await advance(game);
+  if (expected.state !== game.state || expected.questionIndex !== game.question_index) {
+    return res.status(409).json({ error: 'La partie a déjà avancé.' });
+  }
+  const moved = game.state === 'question' ? await closeQuestion(game) : await advance(game);
+  if (!moved) {
+    return res.status(409).json({ error: 'La partie a déjà avancé.' });
   }
   const state = await publicState(game.code);
   if (state.state === 'question') {
@@ -293,18 +299,19 @@ app.post('/api/games/:code/answers', async (req, res) => {
     return res.status(400).json({ error: 'Joueur inconnu dans cette partie.' });
   }
   const question = await currentQuestion(game);
-  if (await repository.findAnswer(game.id, player.id, question.id)) {
-    return res.status(400).json({ error: 'Ce joueur a déjà répondu.' });
-  }
   if (!question.choices.some((c) => c.id === choiceId)) {
     return res.status(400).json({ error: 'Choix inconnu pour cette question.' });
   }
 
+  const answerId = await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now(), game.question_index);
+  if (answerId === null) {
+    return res.status(409).json({ error: 'Déjà répondu, ou la question est close.' });
+  }
+  await broadcastState(game.code);
+  res.status(201).json({});
+
   // Le moment de la réponse est celui du SERVEUR : le bonus de rapidité ne
   // se négocie pas avec l'horloge du client (on y reviendra, semaine 11).
-  await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
-  await broadcastState(game.code); // tout le salon voit le compte de réponses monter
-  res.status(201).json({});
 });
 
 // L'animateur coupe ou rouvre le chat de sa partie, à tout moment. Les

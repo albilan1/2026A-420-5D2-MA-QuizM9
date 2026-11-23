@@ -40,7 +40,7 @@ export default function Game() {
 
   async function advance() {
     try {
-      await nextQuestion(code);
+      await nextQuestion(code, game);
     } catch {
       // L'état suivant arrivera par Socket.IO.
     }

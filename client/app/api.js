@@ -41,8 +41,8 @@ export function joinGame(code, nickname) {
   return request('POST', `/api/games/${code}/players`, { nickname });
 }
 
-export function nextQuestion(code) {
-  return request('POST', `/api/games/${code}/next`);
+export function nextQuestion(code, { state, questionIndex }) {
+    return request('POST', `/api/games/${code}/next`, { state, questionIndex });
 }
 
 export function sendAnswer(code, token, choiceId) {

@@ -34,4 +34,5 @@ export {
   recordAnswer,
   setAnswerPoints,
   updateGameState,
+  transitionGame,
 } from './games.js';

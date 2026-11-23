@@ -86,3 +86,4 @@ CREATE TABLE IF NOT EXISTS answer (
 );
 -- (game_id, player_id, question_id) devrait être UNIQUE : un joueur, une
 -- réponse par question. On y reviendra à la semaine 11.
+CREATE UNIQUE INDEX IF NOT EXISTS answer_once ON answer (game_id, player_id, question_id);

@@ -76,8 +76,8 @@ export async function findAnswer(gameId, playerId, questionId) {
 }
 
 /** Les réponses reçues pour une question, en ordre d'arrivée (horloge du serveur). */
-export async function getAnswersForQuestion(gameId, questionId) {
-  const { rows } = await pool.query(
+export async function getAnswersForQuestion(gameId, questionId, db = pool) {
+  const { rows } = await db.query(
     `SELECT id, player_id, choice_id, answered_at, points
        FROM answer
       WHERE game_id = $1 AND question_id = $2
@@ -104,14 +104,20 @@ export async function countAnswers(gameId, questionId) {
  *
  * @returns {Promise<number>} l'id de la réponse enregistrée
  */
-export async function recordAnswer(gameId, playerId, questionId, choiceId, answeredAt) {
+export async function recordAnswer(gameId, playerId, questionId, choiceId, answeredAt, questionIndex) {
   const { rows } = await pool.query(
     `INSERT INTO answer (game_id, player_id, question_id, choice_id, answered_at)
-     VALUES ($1, $2, $3, $4, $5)
+     SELECT $1, $2, $3, $4, $5
+      WHERE EXISTS (
+        SELECT 1 FROM game
+         WHERE id = $1 AND state = 'question' AND question_index = $6
+          FOR SHARE
+      )
+     ON CONFLICT DO NOTHING
      RETURNING id`,
-    [gameId, playerId, questionId, choiceId, answeredAt],
+    [gameId, playerId, questionId, choiceId, answeredAt, questionIndex],
   );
-  return rows[0].id;
+  return rows[0]?.id ?? null;
 }
 
 /** Fait avancer la machine à états d'une partie, d'un seul UPDATE. */
@@ -120,6 +126,15 @@ export async function updateGameState(gameId, state, questionIndex, questionStar
     'UPDATE game SET state = $1, question_index = $2, question_started_at = $3 WHERE id = $4',
     [state, questionIndex, questionStartedAt, gameId],
   );
+}
+
+export async function transitionGame(gameId, from, to, db = pool) {
+  const { rowCount } = await db.query(
+    `UPDATE game SET state = $1, question_index = $2, question_started_at = $3
+      WHERE id = $4 AND state = $5 AND question_index = $6`,
+    [to.state, to.questionIndex, to.questionStartedAt, gameId, from.state, from.questionIndex],
+  );
+  return rowCount === 1;
 }
 
 /** Inscrit les points obtenus par une réponse, une fois la question close. */
